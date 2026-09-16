@@ -27,6 +27,7 @@ import os
 import re
 import json
 import html
+import shutil
 import smtplib
 import urllib.request
 from itertools import zip_longest
@@ -68,7 +69,7 @@ MAX_ARTICLES_PER_FEED = 20
 MAX_ARTICLES = 40
 
 # How many top-level HN comments to pull in for Hacker News items (0 to disable).
-MAX_HN_COMMENTS = 2
+MAX_HN_COMMENTS = 10
 
 # Model — check https://docs.claude.com for the current recommended model name.
 MODEL = "claude-sonnet-5"
@@ -217,17 +218,18 @@ def strip_html_for_plaintext(html_body):
 
 
 def get_summary(prompt):
+    # print(prompt)
     client = Anthropic()  # reads ANTHROPIC_API_KEY from env automatically
     response = client.messages.create(
         model=MODEL,
-        max_tokens=3000,
+        max_tokens=10000,
         messages=[{"role": "user", "content": prompt}],
     )
     text = "".join(block.text for block in response.content if block.type == "text")
     # Strip stray markdown fences in case the model adds them despite instructions.
     text = re.sub(r"^```(?:html)?\s*", "", text.strip())
     text = re.sub(r"\s*```$", "", text.strip())
-    return text.strip()
+    return text.strip(), response
 
 
 def wrap_email_html(inner_html, date_str):
@@ -266,6 +268,26 @@ def send_email(subject, html_body, plaintext_body):
         server.sendmail(sender, [recipient], msg.as_string())
 
 
+def log_output(prompt, output_html, output, response):
+    output_dir = "runs"
+    runs = os.listdir(output_dir)
+    next_run = max([int(run) for run in runs]) + 1
+
+    output_dir = os.path.join(output_dir, str(next_run))
+    os.makedirs(output_dir)
+
+    shutil.copy(os.path.realpath(__file__), os.path.join(output_dir, "script.py"))
+
+    with open(output_dir + "/prompt.txt", "wt") as fp:
+        fp.write(prompt)
+
+    with open(output_dir + "/output.txt", "wt") as fp:
+            fp.write(output)
+
+    with open(output_dir + "/output.html", "wt") as fp:
+            fp.write(output_html)
+
+
 def main():
     articles = fetch_recent_articles()
     if not articles:
@@ -273,13 +295,15 @@ def main():
         return
 
     prompt = build_prompt(articles)
-    inner_html = get_summary(prompt)
+    inner_html, response = get_summary(prompt)
 
     today = datetime.now().strftime("%Y-%m-%d")
     full_html = wrap_email_html(inner_html, today)
     plaintext = strip_html_for_plaintext(full_html)
-
+    log_output(prompt=prompt, output=plaintext, output_html=full_html, response=response)
+    
     print(plaintext)
+    print(response.stop_reason)
 
     send_email(f"Your News Digest — {today}", full_html, plaintext)
     print(f"Digest sent successfully ({len(articles)} articles considered).")
