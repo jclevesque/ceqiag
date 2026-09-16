@@ -57,7 +57,7 @@ sports, and routine corporate earnings unless something is surprising.
 
 For anything related to Generative AI, also write a one-paragraph summary
 of the news if it is a major item. If comment/discussion data is provided
-for that item, summarize the gist of the discussion too.
+for that item, summarize the gist of the discussion too in one sentence.
 """
 
 # How far back to look for "new" articles.
@@ -70,6 +70,7 @@ MAX_ARTICLES = 40
 
 # How many top-level HN comments to pull in for Hacker News items (0 to disable).
 MAX_HN_COMMENTS = 10
+MAX_TOKENS = 5000
 
 # Model — check https://docs.claude.com for the current recommended model name.
 MODEL = "claude-sonnet-5"
@@ -178,14 +179,14 @@ Write today's digest as clean HTML for an email body. Rules:
   code fences).
 - Use inline CSS "style" attributes on every element — do not rely on a
   <style> block, since many email clients strip those.
-- Structure the digest with these sections, IN THIS ORDER, and include ALL
-  of them even if a section ends up with just one line saying nothing
-  notable happened. Do not let one section crowd out the others:
+- Structure the digest with these sections, IN THIS ORDER, and include all 
+  sections even if a section ends up with just one line saying nothing
+  notable happened. 
     1. "AI & Developer Tools" — the most detail-rich section.
     2. "World & Economic Headlines" — one line per item, headline only,
-       no elaboration.
-    3. "Other Notable Items" — anything else relevant to my interests that
-       doesn't fit the first two buckets.
+       no elaboration. AT MOST two items.
+- Aim for no more than 5 items total across all sections. When in doubt, 
+  leave it out.
 - Section headers: <h2 style="font-family:Arial,sans-serif;font-size:18px;
   color:#111827;border-bottom:2px solid #e5e7eb;padding-bottom:6px;
   margin-top:28px;">
@@ -222,7 +223,7 @@ def get_summary(prompt):
     client = Anthropic()  # reads ANTHROPIC_API_KEY from env automatically
     response = client.messages.create(
         model=MODEL,
-        max_tokens=10000,
+        max_tokens=MAX_TOKENS,
         messages=[{"role": "user", "content": prompt}],
     )
     text = "".join(block.text for block in response.content if block.type == "text")
